@@ -67,7 +67,7 @@ namespace OpenSeaMetadataHelper
 		/// </summary>
 		[JsonProperty("attributes")]
 		public List<MdAttribute> Attributes { get; set; }
-		
+
 		public void Save(string path)
 		{
 			string json = Serialize();
@@ -78,7 +78,7 @@ namespace OpenSeaMetadataHelper
 		public string Serialize()
 		{
 			OnBeforeSerializing();
-			
+
 			JsonSerializer jsonSerializer = JsonSerializer.CreateDefault(null);
 			jsonSerializer.NullValueHandling = NullValueHandling.Ignore;
 			jsonSerializer.Converters.Add(new DoubleJsonConverter());
@@ -239,23 +239,9 @@ namespace OpenSeaMetadataHelper
 			}
 		}
 
-		private static bool IsWholeValue(object value)
+		private static bool IsWholeValue(double value)
 		{
-			if (value is decimal decimalValue)
-			{
-				int precision = (decimal.GetBits(decimalValue)[3] >> 16) & 0x000000FF;
-				return precision == 0;
-			}
-			else if (value is float floatValue)
-			{
-				return floatValue == Math.Truncate(floatValue);
-			}
-			else if (value is double doubleValue)
-			{
-				return doubleValue == Math.Truncate(doubleValue);
-			}
-
-			return false;
+			return value == Math.Truncate(value);
 		}
 	}
 }
