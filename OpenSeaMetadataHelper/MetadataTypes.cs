@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -77,13 +78,22 @@ namespace OpenSeaMetadataHelper
 		public string Serialize()
 		{
 			OnBeforeSerializing();
+			
+			JsonSerializer jsonSerializer = JsonSerializer.CreateDefault(null);
+			jsonSerializer.NullValueHandling = NullValueHandling.Ignore;
+			jsonSerializer.Converters.Add(new DoubleJsonConverter());
 
-			JsonSerializerSettings settings = new JsonSerializerSettings
+			StringWriter sw = new StringWriter(new StringBuilder(), CultureInfo.InvariantCulture);
+			using (JsonTextWriter jsonWriter = new JsonTextWriter(sw))
 			{
-				NullValueHandling = NullValueHandling.Ignore,
-				Converters = new[] { new DoubleJsonConverter() }
-			};
-			return JsonConvert.SerializeObject(this, Formatting.Indented, settings);
+				jsonWriter.Formatting = Formatting.Indented;
+				jsonWriter.IndentChar = '\t';
+				jsonWriter.Indentation = 1;
+
+				jsonSerializer.Serialize(jsonWriter, this);
+			}
+
+			return sw.ToString();
 		}
 
 		private void OnBeforeSerializing()
