@@ -68,10 +68,12 @@ namespace OpenSeaMetadataHelper
 		[JsonProperty("attributes")]
 		public List<MdAttribute> Attributes { get; set; }
 
-		public void Save(string path)
+		public void Save(string path, bool createDirectory = false)
 		{
+			if (createDirectory) Directory.CreateDirectory(Path.GetDirectoryName(path));
+			else if (!Directory.Exists(Path.GetDirectoryName(path))) throw new DirectoryNotFoundException();
+
 			string json = Serialize();
-			Directory.CreateDirectory(Path.GetDirectoryName(path));
 			File.WriteAllText(path, json, Encoding.UTF8);
 		}
 
@@ -144,7 +146,7 @@ namespace OpenSeaMetadataHelper
 			set
 			{
 				DisplayType = DisplayType.Date;
-				Value = ((DateTimeOffset)value).ToUnixTimeSeconds();
+				Value = (long)(value - new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 			}
 		}
 
