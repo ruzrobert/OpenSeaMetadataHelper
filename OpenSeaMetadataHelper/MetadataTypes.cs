@@ -82,6 +82,7 @@ namespace OpenSeaMetadataHelper
 			JsonSerializer jsonSerializer = JsonSerializer.CreateDefault(null);
 			jsonSerializer.NullValueHandling = NullValueHandling.Ignore;
 			jsonSerializer.Converters.Add(new DoubleJsonConverter());
+			jsonSerializer.Converters.Add(new DisplayTypeJsonConverter());
 
 			StringWriter sw = new StringWriter(new StringBuilder(), CultureInfo.InvariantCulture);
 			using (JsonTextWriter jsonWriter = new JsonTextWriter(sw))
@@ -113,8 +114,8 @@ namespace OpenSeaMetadataHelper
 		/// <summary>
 		/// 
 		/// </summary>
-		[JsonProperty("display_type")]
-		public string DisplayType { get; set; }
+		[JsonProperty("display_type", DefaultValueHandling = DefaultValueHandling.Ignore)]
+		public DisplayType DisplayType { get; set; }
 
 		/// <summary>
 		/// 
@@ -132,7 +133,7 @@ namespace OpenSeaMetadataHelper
 		/// 
 		/// </summary>
 		[JsonProperty("max_value")]
-		public object MaxValue { get; set; }
+		public double? MaxValue { get; set; }
 
 		/// <summary>
 		/// 
@@ -142,7 +143,7 @@ namespace OpenSeaMetadataHelper
 		{
 			set
 			{
-				DisplayType = SerializableDisplayTypes.FromDisplayType(OpenSeaMetadataHelper.DisplayType.Date);
+				DisplayType = DisplayType.Date;
 				Value = ((DateTimeOffset)value).ToUnixTimeSeconds();
 			}
 		}
@@ -154,10 +155,10 @@ namespace OpenSeaMetadataHelper
 
 		private MdAttribute(DisplayType displayType, string traitType, object value, double? maxValue)
 		{
-			DisplayType = SerializableDisplayTypes.FromDisplayType(displayType);
+			DisplayType = displayType;
 			TraitType = traitType;
 			Value = value;
-			MaxValue = maxValue.HasValue ? (object)maxValue.Value : null;
+			MaxValue = maxValue ?? default;
 		}
 
 		public MdAttribute(string traitType, DateTime date)
@@ -187,22 +188,6 @@ namespace OpenSeaMetadataHelper
 
 		public MdAttribute(string value) => Value = value;
 		public MdAttribute(double value) => Value = value;
-
-		private static class SerializableDisplayTypes
-		{
-			public const string None = null;
-			public const string Number = "number";
-			public const string BoostPercentage = "boost_percentage";
-			public const string BoostNumber = "boost_number";
-			public const string Date = "date";
-
-			public static string[] GetValues() => new[] { None, Number, BoostPercentage, BoostNumber, Date };
-
-			public static string FromDisplayType(DisplayType displayType)
-			{
-				return GetValues()[(int)displayType];
-			}
-		}
 	}
 
 	public enum DisplayType
@@ -218,18 +203,20 @@ namespace OpenSeaMetadataHelper
 	/// https://stackoverflow.com/questions/21153381/json-net-serializing-float-double-with-minimal-decimal-places-i-e-no-redundant
 	/// https://stackoverflow.com/questions/65093530/prevent-newtonsoft-json-from-adding-trailing-0
 	/// </summary>
-	public class DoubleJsonConverter : JsonConverter<double>
+	public class DoubleJsonConverter : JsonConverter
 	{
 		public override bool CanRead => false;
 
-		public override double ReadJson(JsonReader reader, Type objectType, double existingValue, bool hasExistingValue, JsonSerializer serializer)
+		public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
 		{
 			throw new NotImplementedException("Unnecessary because CanRead is false. The type will skip the converter.");
 		}
 
-		public override void WriteJson(JsonWriter writer, double value, JsonSerializer serializer)
+		public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
 		{
-			if (IsWholeValue(value))
+			double doubleValue = (double)value;
+
+			if (IsWholeValue(doubleValue))
 			{
 				writer.WriteRawValue(JsonConvert.ToString(Convert.ToInt64(value)));
 			}
@@ -242,6 +229,52 @@ namespace OpenSeaMetadataHelper
 		private static bool IsWholeValue(double value)
 		{
 			return value == Math.Truncate(value);
+		}
+
+		public override bool CanConvert(Type objectType)
+		{
+			if (objectType == typeof(double)) return true;
+			if (objectType != null && objectType.IsGenericType && objectType.GetGenericTypeDefinition() == typeof(Nullable<>)
+					&& objectType.GetGenericArguments()[0] == typeof(double)) return true;
+			return false;
+		}
+	}
+
+	public class DisplayTypeJsonConverter : JsonConverter<DisplayType>
+	{
+		public override DisplayType ReadJson(JsonReader reader, Type objectType, DisplayType existingValue, bool hasExistingValue, JsonSerializer serializer)
+		{
+			if (reader.Value is string strValue)
+			{
+				switch (strValue)
+				{
+					case "number": return DisplayType.Number;
+					case "boost_percentage": return DisplayType.BoostPercentage;
+					case "boost_number": return DisplayType.BoostNumber;
+					case "date": return DisplayType.Date;
+				}
+			}
+
+			return DisplayType.None;
+		}
+
+		public override void WriteJson(JsonWriter writer, DisplayType value, JsonSerializer serializer)
+		{
+			switch (value)
+			{
+				case DisplayType.None:
+					writer.WriteNull(); break;
+				case DisplayType.Number:
+					writer.WriteValue("number"); break;
+				case DisplayType.BoostPercentage:
+					writer.WriteValue("boost_percentage"); break;
+				case DisplayType.BoostNumber:
+					writer.WriteValue("boost_number"); break;
+				case DisplayType.Date:
+					writer.WriteValue("date"); break;
+				default:
+					writer.WriteNull(); break;
+			}
 		}
 	}
 }
